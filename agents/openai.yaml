@@ -1,5 +1,5 @@
 interface:
   display_name: "Portfolio Workbench"
-  short_description: "在 Codex 内交互完成 ERC 策略摘要、风险预警、持仓记录与调仓建议"
+  short_description: "在 Codex 内运行 A40/美40/金20 风险预算调仓工作台"
   brand_color: "#2F6F73"
   default_prompt: "使用 $portfolio-workbench 启动调仓工作台，展示策略摘要和操作菜单。"
