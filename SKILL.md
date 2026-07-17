@@ -1,6 +1,6 @@
 ---
 name: portfolio-workbench
-description: Use this skill to generate the current portfolio-dev daily rebalance signal or turn a confirmed holding screenshot into concrete CNY rebalance amounts.
+description: Use this skill to generate the current portfolio-workbench daily rebalance signal or turn a confirmed holding screenshot into concrete CNY rebalance amounts.
 ---
 
 # Portfolio Workbench
@@ -67,7 +67,9 @@ Strategy ID:
 equity_rb25_25_50_bond15_gold10_lw504_p90any_dd10r504_c2_threshold5
 ```
 
-The workbench mirrors the current `portfolio-dev/equal5_vol90` contract but runs independently from `portfolio_data/data_cache/`.
+The workbench mirrors the current `portfolio-dev/equal5_vol90` contract, while executing independently from the project package and its own `portfolio_data/data_cache/`.
+
+The returned `strategy_id` must equal the ID above. If the runtime output, this file, or `portfolio-dev` disagree, stop and report the mismatch; do not present either version as current.
 
 ### 1. Equity risk-budget base
 
