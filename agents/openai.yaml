@@ -1,5 +1,5 @@
 interface:
   display_name: "Portfolio Workbench"
-  short_description: "在 Codex 内运行 A40/美40/金20 风险预算调仓工作台"
+  short_description: "生成每日调仓信号，并把持仓截图转换为具体调仓金额"
   brand_color: "#2F6F73"
-  default_prompt: "使用 $portfolio-workbench 启动调仓工作台，展示策略摘要和操作菜单。"
+  default_prompt: "使用 $portfolio-workbench 生成当前每日调仓信号；如有持仓截图，先确认识别结果，再生成具体调仓金额。"

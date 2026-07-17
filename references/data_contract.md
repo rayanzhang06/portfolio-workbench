@@ -1,64 +1,89 @@
 # Portfolio Workbench Data Contract
 
-## Data Root And Inputs
+## User-Facing Operations
 
-`portfolio_data/` is the only mutable data root. The market cache contains `cni_growth.csv`, `cni_value.csv`, `nasdaq.csv`, `china_bond_composite.csv`, `gold.csv`, and `usdcny.csv`. Nasdaq is converted to unhedged CNY with point-aligned USD/CNY data and at most ten days of forward fill.
+The workbench exposes only:
 
-Other files are `config_events.jsonl`, `records.jsonl`, `outputs/latest_execution_plan.json`, and `uploads/screenshots/`. The project package owns the CLI; the canonical skill wrapper is only a fallback launcher.
+```text
+signal
+rebalance --payload <confirmed-holding-json>
+```
 
-## Asset Keys
+`signal` produces the holdings-aware daily model signal. `rebalance` saves a confirmed screenshot holding and returns concrete CNY target and trade amounts.
 
-| key | 中文名 |
-| --- | --- |
-| `cni_growth` | A股成长 |
-| `cni_value` | A股价值 |
-| `nasdaq` | 纳斯达克 |
-| `china_bond_composite` | 中证全债 |
-| `gold` | 黄金 |
-| `cash` | 现金 |
-| `non_strategy` | 非策略仓位 |
+If refresh fails while local cache is usable, either command returns `status=cache_confirmation_required` without writing a signal, plan, screenshot, or record. After user confirmation, rerun with `--no-refresh`.
+
+## Market Refresh
+
+- `cni_growth` and `cni_value` come from the official CNI HTTPS history endpoint for index codes `980080` and `980081`. The response code and index name must match before the cache is accepted; transient connection and server failures are retried.
+- Nasdaq, China Bond Composite, gold, and USD/CNY continue to use their declared AKShare sources.
+- A refresh is all-or-nothing: all six cache files must download successfully before any live cache file is replaced.
 
 ## Current Strategy
 
 ```text
-risk_budget_a40_us40_gold20_lw504_p90_bondsink_threshold5
+equity_rb25_25_50_bond15_gold10_lw504_p90any_dd10r504_c2_threshold5
 ```
 
-- Schema: `portfolio_workbench.execution_plan.v2`.
-- Fixed bond base: 0.20.
-- Risk contribution targets: `cni_growth=0.20`, `cni_value=0.20`, `nasdaq=0.40`, `gold=0.20`.
-- Covariance: `ledoit_wolf`, 504 observations strictly before the check date.
-- Long-only risk-asset nominal cap: 0.50 of total portfolio.
-- Maximum accepted risk-budget error: 0.005.
-- Fallback nominal target: 0.15 / 0.15 / 0.30 / 0.20 / 0.20.
-- Active tilt: disabled placeholder.
-- Risk control: 63d-only P90 cuts 50%; simultaneous 21d and 63d P90 cuts 100%; released weight goes only to bond; bond cap 0.80.
-- Decision gate: max absolute deviation at least 0.05; build month bypasses the gate.
+- Equity risk-budget sleeve: 75% of capital.
+- Equity risk-contribution targets: `cni_growth=0.25`, `cni_value=0.25`, `nasdaq=0.50`.
+- Fixed base: bonds 0.15, gold 0.10.
+- Covariance: Ledoit-Wolf, 504 observations strictly before the monthly check date.
+- P90: either 21d or 63d window cuts 50%; both cut 100%; only equities participate; released weight goes to bonds with an 0.80 cap.
+- Insurance: strategy self-NAV rolling-504 drawdown; −10% entry / −10% recovery; two-close confirmation; defense is bonds 0.80, gold 0.10, equities 0.10.
+- Ordinary gate: maximum absolute deviation at least 0.05.
+- Build month and insurance state change force execution.
 - Execution rounding: 0.01.
+- Model transaction cost: 0.0001 on buy notional and 0.0001 on sell notional.
 
-These modules remain independently auditable: the risk-budget solver creates the base, the active placeholder leaves it unchanged, and the P90 bond sink creates the exact final target.
+## Mutable Files
 
-## Save Record Payload
+`portfolio_data/` is the only mutable root:
 
-Payloads contain `valuation_date`, `total_value`, five `asset_amounts`, `cash_amount`, `non_strategy_amount`, optional `etf_names`, optional screenshot metadata, and `confirmed: true`. Weights are derived from amounts. Never commit real account amounts or screenshot names to the skill repository.
+- `data_cache/{cni_growth,cni_value,nasdaq,china_bond_composite,gold,usdcny}.csv`
+- `records.jsonl`
+- `outputs/latest_signal.json`
+- `outputs/latest_execution_plan.json`
+- `uploads/screenshots/`
 
-## Latest Execution Plan
+`config_events.jsonl` is ignored legacy audit data and is not a recommendation input.
 
-The root object exposes strategy/schema IDs, check/data dates, execution status, decision-gate diagnostics, strategy snapshot, market signal, risk-budget specification, actions, residual positions, warnings, and totals.
+## Signal Contract
 
-Each `actions[]` item exposes:
+Schema: `portfolio_workbench.daily_signal.v1`.
 
-- current and execution amounts, plus `target_amount` / `trade_amount` aliases;
-- `risk_budget_base_weight`, `risk_budget_target`, `risk_contribution`, `risk_budget_max_error`, `risk_budget_used_fallback`;
-- covariance estimator/lookback and Ledoit-Wolf shrinkage;
-- active placeholder fields and `pre_risk_control_weight`;
-- 21d/63d high-vol flags, raw/applied cut ratios, volatilities and P90 thresholds;
-- raw/applied freed weight, bond capacity scale, exact/rounded/execution targets.
+The root exposes strategy/schema IDs, generation/data/check dates, holding date, mode, `trade_required`, trigger diagnostics, execution step, equity risk-budget specification, P90 contract, insurance state, warnings, five actions, and cash/non-strategy residuals.
 
-Each `residual_positions[]` item includes the same amount aliases plus `kind_cn`.
+Each action exposes current weight, base weight, equity risk contribution where applicable, P90 measurements and cuts, normal target, insurance-effective exact target, execution target, trade weight, and direction.
 
-If no plan exists, `latest-plan` returns exit 0 with `status: empty`. If the stored `strategy_id` differs from the current strategy, it returns exit 0 with `status: stale_strategy`, both IDs, and the stored plan. A stale plan is not actionable and must be regenerated only after explicit holding confirmation.
+## Rebalance Plan Contract
 
-## Legacy Events
+Schema: `portfolio_workbench.rebalance_plan.v1`.
 
-Historical `baseline` and `subjective_offset` events may remain in append-only logs for audit. Neither changes the current strategy. `save-baseline` is legacy audit compatibility; `save-offset` is not a supported command.
+The root exposes strategy/schema IDs, holding/data/check dates, trigger, insurance, total account value, five orders, cash/non-strategy residuals, and trade totals.
+
+Each order exposes asset key/name, confirmed ETF name, current amount and weight, target amount and weight, signed trade amount, and buy/sell/hold direction.
+
+## Confirmed Holding Payload
+
+```json
+{
+  "valuation_date": "YYYY-MM-DD",
+  "total_value": 100000.0,
+  "asset_amounts": {
+    "cni_growth": 0.0,
+    "cni_value": 0.0,
+    "nasdaq": 0.0,
+    "china_bond_composite": 0.0,
+    "gold": 0.0
+  },
+  "cash_amount": 0.0,
+  "non_strategy_amount": 0.0,
+  "etf_names": {},
+  "screenshot_path": "/absolute/path/to/image",
+  "source_id": "image-name",
+  "confirmed": true
+}
+```
+
+Weights are always derived from amounts. The seven amounts must reconcile to `total_value` within CNY 0.02.
