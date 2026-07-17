@@ -25,6 +25,10 @@ If refresh fails while local cache is usable, either command returns `status=cac
 equity_rb25_25_50_bond15_gold10_lw504_p90any_dd10r504_c2_threshold5
 ```
 
+Production revision: `1`.
+
+The canonical skill and `portfolio_workbench` package are production. `portfolio-dev` is a candidate/test channel whose revision may be equal to or greater than production; its output is not executable production guidance until explicitly promoted.
+
 - Equity risk-budget sleeve: 75% of capital.
 - Equity risk-contribution targets: `cni_growth=0.25`, `cni_value=0.25`, `nasdaq=0.50`.
 - Fixed base: bonds 0.15, gold 0.10.

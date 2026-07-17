@@ -67,9 +67,11 @@ Strategy ID:
 equity_rb25_25_50_bond15_gold10_lw504_p90any_dd10r504_c2_threshold5
 ```
 
-The workbench mirrors the current `portfolio-dev/equal5_vol90` contract, while executing independently from the project package and its own `portfolio_data/data_cache/`.
+Production revision: `1`.
 
-The returned `strategy_id` must equal the ID above. If the runtime output, this file, or `portfolio-dev` disagree, stop and report the mismatch; do not present either version as current.
+The canonical skill and the project package `portfolio_workbench` are the production channel. `portfolio-dev` is a separate candidate/test channel and may be equal to or ahead of production; its outputs are never user-facing production instructions until an explicit promotion updates Workbench, this skill, and the production revision.
+
+The returned production `strategy_id` must equal the ID above. If Workbench, this file, or the production entry in `strategy_channels.json` disagree, stop and report the mismatch. Do not substitute a newer dev candidate for the production strategy.
 
 ### 1. Equity risk-budget base
 
