@@ -22,7 +22,7 @@ If refresh fails while local cache is usable, either command returns `status=cac
 - A screenshot attached in the current request takes precedence and must pass the recognition and confirmation gate before `rebalance` saves it.
 - Without a new attachment, use the last valid appended confirmed holding in `records.jsonl` and its saved screenshot as the default actual-account snapshot. Append order, rather than filesystem modification time, defines “most recent”.
 - Reusing that snapshot calls `signal`; it does not copy the screenshot again or append another record. When the holding exists, `signal` regenerates `latest_execution_plan.json` against the new decision.
-- The regenerated plan is current only when its `decision_ref.decision_id` equals the new signal's `decision_id`. Present the reused screenshot source and valuation date alongside the account action.
+- The regenerated plan is current only when its `decision_ref.run_id` and `decision_ref.pending_identity` equal the verified signal's identities. Present the reused screenshot source and valuation date alongside the account action.
 - Ask for a new screenshot only when no valid confirmed upload is available.
 
 ## Market Refresh
@@ -66,28 +66,27 @@ The canonical skill and `portfolio_workbench` package are production. `portfolio
 
 `config_events.jsonl` is ignored legacy audit data and is not a recommendation input.
 
-## Signal Contract
+## Staged Rev5 Signal Contract
 
-Schema: `portfolio_workbench.daily_signal.v3`.
+Schema: `portfolio_workbench.daily_signal.v4`.
 
-The root exposes strategy/schema IDs, generation/data/check dates, `strategy_action`, strategy reason, execution step, equity risk-budget specification, P90 contract, insurance state, warnings, five shadow actions, and the normalized decision. It contains no actual-account holding input.
+The root exposes strategy/schema IDs, staged activation status, framework identity, data end, `strategy_action`, reason, target positions, pending identity, protected and reference run IDs, manifest path, embedded run manifest, normalized decision, and input/prior/next state identities. It contains no actual-account holding input.
 
-Each action exposes shadow pre-trade weight, base weight, equity risk contribution where applicable, P90 measurements and cuts, normal target, insurance-effective exact target, rounded model target, shadow post-trade weight, strategy trade weight, and direction.
+The embedded `portfolio.nautilus_run.v1` binds the release, framework version, input snapshot, XSHG calendar, catalog/config, initial state, reference dependency, normalized decisions and event/fill/position/result digests. Promotion may change `activation_status`, but must not weaken these authority fields.
 
-The active Nautilus signal must also expose `run_id`, `reference_run_id`, `run_manifest_path`, and an embedded `portfolio.nautilus_run.v1`. The manifest binds the release, framework version, input snapshot, XSHG calendar, catalog/config, initial state, reference dependency, and event/fill/position/result digests. Actual-account inputs are excluded.
+## Staged Rev5 Account Plan Contract
 
-## Rebalance Plan Contract
+Schema: `portfolio_workbench.nautilus_execution_plan.v1`.
 
-Schema: `portfolio_workbench.rebalance_plan.v3`.
+The root exposes the plan ID, strategy/revision, a decision reference (`run_id`, `pending_identity`, `next_state_identity`), a holding-snapshot reference, separate `strategy_action` and `account_action`, maximum absolute account deviation, five orders, pending/satisfied status, optional superseded plan ID, and authority-validation result. A screenshot confirms holdings; it is not execution acknowledgement.
 
-The root exposes strategy/schema IDs, decision and holding-snapshot references, separate `strategy_action` and `account_action`, holding/data/check dates, trigger, insurance, total account value, five orders, cash/non-strategy residuals, and trade totals. A screenshot confirms holdings; it is not execution acknowledgement.
-
-Each order exposes asset key/name, confirmed ETF name, current amount and weight, target amount and weight, signed trade amount, and buy/sell/hold direction.
+Each order exposes asset key, confirmed ETF name when available, current amount, target amount and weight, signed trade amount, and buy/sell/hold direction.
 
 ## Confirmed Holding Payload
 
 ```json
 {
+  "snapshot_id": "confirmed-record-id",
   "valuation_date": "YYYY-MM-DD",
   "total_value": 100000.0,
   "asset_amounts": {
@@ -106,4 +105,4 @@ Each order exposes asset key/name, confirmed ETF name, current amount and weight
 }
 ```
 
-Weights are always derived from amounts. The seven amounts must reconcile to `total_value` within CNY 0.02.
+The outer screenshot-confirmation flow may derive `snapshot_id` from the appended confirmed record before calling the staged account adapter. Weights are always derived from amounts. The seven amounts must reconcile to `total_value` within CNY 0.02.

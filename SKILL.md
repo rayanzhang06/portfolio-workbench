@@ -38,7 +38,7 @@ Resolve the actual-account holding source in this order:
 2. Otherwise, the most recent confirmed holding record in `portfolio_data/records.jsonl` and its saved screenshot under `portfolio_data/uploads/screenshots/`. “Most recent” means the last valid appended record, not the file modification time.
 3. Ask for a new screenshot only when neither source is available or the saved record/screenshot is invalid.
 
-Reusing the most recent confirmed upload does not require OCR or a second confirmation and must not append a duplicate record. Run `signal`; Workbench will use that confirmed snapshot to supersede `latest_execution_plan.json` with the new strategy decision. Identify the reused screenshot source and valuation date in the response so the user can notice if it is stale.
+Reusing the most recent confirmed upload does not require OCR or a second confirmation and must not append a duplicate record. After production activation, run `signal`; Workbench will use that confirmed snapshot to supersede `latest_execution_plan.json` with the new strategy decision. Identify the reused screenshot source and valuation date in the response so the user can notice if it is stale.
 
 ## Daily Signal Flow
 
@@ -59,7 +59,7 @@ Reusing the most recent confirmed upload does not require OCR or a second confir
    - when the default confirmed upload exists, its screenshot source and valuation date, the separate account `TRADE` / `HOLD` action, and the five concrete CNY orders from the regenerated plan;
    - P90 or insurance warnings when present.
 
-`signal` writes the account-independent decision to `portfolio_data/outputs/latest_signal.json`. It does not create or change a holding record. When a confirmed holding already exists, it also supersedes `latest_execution_plan.json` with a plan that references the new decision and that same confirmed snapshot; present that plan only when its `decision_ref.decision_id` matches the new signal. Actual holdings must never feed back into the strategy signal.
+After production activation, `signal` writes the account-independent decision to `portfolio_data/outputs/latest_signal.json`. It does not create or change a holding record. When a confirmed holding already exists, it also supersedes `latest_execution_plan.json` with a plan that references the new decision and that same confirmed snapshot. Present that plan only when `decision_ref.run_id` and `decision_ref.pending_identity` match the verified signal. Actual holdings must never feed back into the strategy signal.
 
 ## Holding Screenshot Flow
 
