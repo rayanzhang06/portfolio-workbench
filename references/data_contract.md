@@ -9,84 +9,131 @@ signal
 rebalance --payload <confirmed-holding-json>
 ```
 
-`signal` produces the account-independent daily shadow-strategy decision. `rebalance` saves a confirmed screenshot holding and returns a separate account action with concrete CNY target and trade amounts.
+Both operations require active production revision 12, NautilusTrader 1.230.0,
+and an exact release binding to
+`portfolio_workbench/nautilus_production_rev12/release_manifest.json`. The
+complete `portfolio.nautilus_run.v1` and signal envelope must pass
+`scripts/verify_nautilus_authority_v2.py` before publication or account
+adaptation. Production rev4 is rollback-only and cannot generate a new signal.
 
-Both operations are blocked unless the active production channel is NautilusTrader and the referenced `portfolio.nautilus_run.v1` passes `scripts/verify_nautilus_authority.py`. The current production rev4 is frozen during migration; staged rev5 must not be treated as active before explicit approval.
+`signal` and `rebalance` are deliberately separate. `signal` refreshes and
+validates market data, publishes only `latest_signal.json`, and archives a
+current account plan that no longer belongs to the newly published signal. It
+does not read `records.jsonl` or call the account adapter. `rebalance` consumes
+the already published and validator-passed `latest_signal.json`; it does not
+refresh market data or generate another strategy run.
 
-The staged rev5 account adapter is `portfolio_workbench.nautilus_account_adapter:build_execution_plan`. It consumes a validator-passed signal path and one confirmed holding snapshot, never recalculates the strategy, never modifies the signal, and marks a prior amount plan superseded whenever the decision or snapshot identity changes. It becomes user-facing only after explicit promotion.
+This separation is native to the frozen rev12 production workbench. Files under
+`portfolio_workbench/nautilus_production_rev12/` and their release manifest stay
+byte-for-byte immutable; all strategy computation originates from that
+validated release.
 
-If refresh fails while local cache is usable, either command returns `status=cache_confirmation_required` without writing a signal, plan, screenshot, or record. After user confirmation, rerun with `--no-refresh`.
+The production account adapter is
+`portfolio_workbench.nautilus_production_rev12.account_adapter:build_execution_plan`.
+It consumes one verified signal path and one confirmed holding snapshot. It
+cannot recalculate the strategy or modify the signal.
 
-## Default Holding Resolution
+Before every signal run, the required data end is
+`latest_completed_xshg_session`. At Monday 09:00 Beijing time this is the
+previous XSHG trading day, normally Friday. All five caches must produce that
+same common close. If refresh fails, a cache is reusable only when it reaches
+that completed XSHG close. Otherwise `signal` returns
+`status=market_data_unavailable` and publishes nothing. A valid fallback cache
+still requires explicit confirmation before rerunning with `--no-refresh` in an
+interactive session; scheduled runs fail closed and never use this fallback.
 
-- A screenshot attached in the current request takes precedence and must pass the recognition and confirmation gate before `rebalance` saves it.
-- Without a new attachment, use the last valid appended confirmed holding in `records.jsonl` and its saved screenshot as the default actual-account snapshot. Append order, rather than filesystem modification time, defines “most recent”.
-- Reusing that snapshot calls `signal`; it does not copy the screenshot again or append another record. When the holding exists, `signal` regenerates `latest_execution_plan.json` against the new decision.
-- The regenerated plan is current only when its `decision_ref.run_id` and `decision_ref.pending_identity` equal the verified signal's identities. Present the reused screenshot source and valuation date alongside the account action.
-- Ask for a new screenshot only when no valid confirmed upload is available.
+## Current Holding Resolution
 
-## Market Refresh
+- The primary source is the visible Investment Ledger account page at
+  `https://tzzb.10jqka.com.cn/pc/index.html#/myAccount/a/6O2MaGg`, read-only
+  through `computer-use` in the user's Chrome session.
+- Select and visibly verify the `汇总持仓` tab before reading data, and repeat
+  that check after every reload or route change. Never consume amounts from
+  `我的账户`, even if it is the landing tab or its account cards show numeric
+  values.
+- The web valuation/update date must reach the latest completed XSHG session.
+  Nonzero holdings paired with a displayed zero total are inconsistent data,
+  not a real zero balance. Reject the snapshot with
+  `ACCOUNT_SUMMARY_INCONSISTENT`.
+- Reject data when holdings, cash and non-strategy amounts exceed total assets
+  by more than CNY 0.02, dates or totals cross tabs/refresh states, or total and
+  cash would need to be inferred from a rounded allocation percentage.
+- If the page is stale or unsynchronized, ask the user to `访问投资账本app`, then
+  reload and retry. If authentication is required, ask the user to log in in
+  Chrome, then reload and retry; never request or enter credentials.
+- Request a screenshot only when the page remains unavailable or unreadable
+  after the applicable user action and retry. Web and screenshot holdings both
+  require explicit user confirmation before `rebalance` saves them.
+- Do not silently treat the last record in `records.jsonl` as current after a
+  failed web read. Reuse it only after the user explicitly selects that dated
+  snapshot and confirms that no account changes occurred after it.
+- A plan is current only when its decision run and pending identity match the
+  latest verified signal. A new signal never rebuilds an account plan from
+  history; it archives any prior latest plan as superseded.
 
-- `cni_growth` and `cni_value` come from the official CNI HTTPS history endpoint for index codes `980080` and `980081`. The response code and index name must match before the cache is accepted; transient connection and server failures are retried.
-- Nasdaq, China Bond Composite, gold, and USD/CNY continue to use their declared AKShare sources.
-- A refresh is all-or-nothing: all six cache files must download successfully before any live cache file is replaced.
-
-## Current Strategy
+## Active Production Rev12 Strategy
 
 ```text
-equity_rb25_25_50_bond15_gold10_lw504_p90any_refnav_dd15lock_c2_bond90gold10_threshold5
+equity_b0nqg_rb50_40_10_bond10_ewma20hl_b0c2afirstbreachz2h8_weekly_xshgcal_noinsurance_basegate5_etfpx_uncapped_exact
 ```
 
-Production revision: `4` (frozen; no new authoritative signal generation).
+- Production revision: `12`.
+- China bonds have a fixed 10% target. B0, Nasdaq and gold share the 90% dynamic
+  sleeve with target risk contributions 50%, 40% and 10%.
+- Covariance is zero-mean EWMA over all jointly valid prior returns, using a
+  20-trading-day half-life and a 60-return warm-up. Before the first valid
+  weekly risk-budget result, the model stays in cash.
+- B0 uses weekly first outward breach at 2 sigma and exits at zero or after
+  eight weekly observations.
+- The 5% gate applies only to aggregate B0/Nasdaq/bond/gold weights. A B0 style
+  switch preserves aggregate B0 weight and is not blocked by this gate.
+- Insurance is disabled.
+- Signals are decided at the calendar-known XSHG weekly close and execute at the
+  next XSHG session close. Buys and sells each pay 0.0001; no slippage.
 
-Staged candidate: revision `5`, same strategy ID, `nautilus_trader==1.230.0`, `exchange_calendars==4.13.2`, `BacktestNode + ParquetDataCatalog`. Promotion remains a separate approval.
+## Market Data
 
-The canonical skill and `portfolio_workbench` package are production. `portfolio-dev` is a candidate/test channel whose revision may be equal to or greater than production; its output is not executable production guidance until explicitly promoted.
+- `cni_growth`: CNI 980080.
+- `cni_value`: CNI 980081.
+- `nasdaq`: split-adjusted 513100 secondary-market close.
+- `china_bond_composite`: H11001.
+- `gold`: split-adjusted 518880 secondary-market close.
 
-- Equity risk-budget sleeve: 75% of capital.
-- Equity risk-contribution targets: `cni_growth=0.25`, `cni_value=0.25`, `nasdaq=0.50`.
-- Fixed base: bonds 0.15, gold 0.10.
-- Covariance: Ledoit-Wolf, 504 observations strictly before the monthly check date.
-- P90: either 21d or 63d window cuts 50%; both cut 100%; only equities participate; released weight goes to bonds with an 0.80 cap.
-- Insurance: an uninsured reference NAV independently runs the normal strategy; its rolling-504 peak is frozen on first F entry and retained through exits/re-entries until reference-NAV recovery; −15% entry / −15% recovery; two-close confirmation; defense is bonds 0.90, gold 0.10, equities 0.00.
-- Ordinary gate: maximum absolute deviation at least 0.05.
-- The shadow portfolio builds once at the first valid replay event; ordinary checks are monthly and insurance state changes bypass the ordinary gate.
-- Execution rounding: 0.01.
-- Model transaction cost: 0.0001 on buy notional and 0.0001 on sell notional.
+The common mainland session calendar is authoritative. ETF observations may be
+forward-filled for at most two common sessions. An unfinished current session,
+missing latest completed session, excessive staleness, or calendar conflict is
+a hard failure. Rev12 has no historical activation exception.
 
 ## Mutable Files
 
 `portfolio_data/` is the only mutable root:
 
-- `data_cache/{cni_growth,cni_value,nasdaq,china_bond_composite,gold,usdcny}.csv`
+- `data_cache/{cni_growth,cni_value,nasdaq,china_bond_composite,gold}.csv`
 - `records.jsonl`
 - `outputs/latest_signal.json`
 - `outputs/latest_execution_plan.json`
-- `uploads/screenshots/`
+- `outputs/nautilus_runs/`
+- `outputs/superseded_execution_plans/`
+- `uploads/screenshots/` (screenshot fallback only)
 
-`config_events.jsonl` is ignored legacy audit data and is not a recommendation input.
+## Signal And Plan Contracts
 
-## Staged Rev5 Signal Contract
+The production signal schema is `portfolio_workbench.daily_signal.v5`. It
+contains strategy/revision, active status, framework, data end, strategy action,
+reason, exact target, pending identity, linked reference/protected run IDs,
+manifest path and manifest, normalized decision, and input/prior/next state
+identities. It contains no actual-account input.
 
-Schema: `portfolio_workbench.daily_signal.v4`.
-
-The root exposes strategy/schema IDs, staged activation status, framework identity, data end, `strategy_action`, reason, target positions, pending identity, protected and reference run IDs, manifest path, embedded run manifest, normalized decision, and input/prior/next state identities. It contains no actual-account holding input.
-
-The embedded `portfolio.nautilus_run.v1` binds the release, framework version, input snapshot, XSHG calendar, catalog/config, initial state, reference dependency, normalized decisions and event/fill/position/result digests. Promotion may change `activation_status`, but must not weaken these authority fields.
-
-## Staged Rev5 Account Plan Contract
-
-Schema: `portfolio_workbench.nautilus_execution_plan.v1`.
-
-The root exposes the plan ID, strategy/revision, a decision reference (`run_id`, `pending_identity`, `next_state_identity`), a holding-snapshot reference, separate `strategy_action` and `account_action`, maximum absolute account deviation, five orders, pending/satisfied status, optional superseded plan ID, and authority-validation result. A screenshot confirms holdings; it is not execution acknowledgement.
-
-Each order exposes asset key, confirmed ETF name when available, current amount, target amount and weight, signed trade amount, and buy/sell/hold direction.
+The account plan schema is
+`portfolio_workbench.nautilus_execution_plan.v1`. It binds one decision and one
+confirmed snapshot, keeps `strategy_action` separate from `account_action`, and
+lists five concrete CNY orders. The plan identity includes a digest of snapshot
+date, total value, amounts and ETF mappings.
 
 ## Confirmed Holding Payload
 
 ```json
 {
-  "snapshot_id": "confirmed-record-id",
   "valuation_date": "YYYY-MM-DD",
   "total_value": 100000.0,
   "asset_amounts": {
@@ -99,10 +146,13 @@ Each order exposes asset key, confirmed ETF name when available, current amount,
   "cash_amount": 0.0,
   "non_strategy_amount": 0.0,
   "etf_names": {},
-  "screenshot_path": "/absolute/path/to/image",
-  "source_id": "image-name",
+  "screenshot_path": null,
+  "source_id": "investment-ledger-web:6O2MaGg:summary-holdings",
   "confirmed": true
 }
 ```
 
-The outer screenshot-confirmation flow may derive `snapshot_id` from the appended confirmed record before calling the staged account adapter. Weights are always derived from amounts. The seven amounts must reconcile to `total_value` within CNY 0.02.
+For a confirmed Investment Ledger read, omit `screenshot_path` or set it to
+`null`. For a screenshot fallback, provide its absolute path and use its file
+name as `source_id`. Weights are always derived from amounts. The seven amounts
+must reconcile to `total_value` within CNY 0.02.

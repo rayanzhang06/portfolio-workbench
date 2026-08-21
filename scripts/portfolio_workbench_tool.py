@@ -8,12 +8,18 @@ from pathlib import Path
 
 def main() -> None:
     project_root = _project_root_from_args(sys.argv[1:])
+    if any(
+        command in sys.argv[1:]
+        for command in ("staged-signal", "activation-signal")
+    ):
+        print(json.dumps({"status": "internal_command_not_available"}))
+        raise SystemExit(2)
     if any(arg in {"signal", "rebalance"} for arg in sys.argv[1:]):
         _enforce_production_authority(project_root)
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
 
-    from portfolio_workbench.cli import main as project_main
+    from portfolio_workbench.nautilus_production_rev12.cli import main as project_main
 
     project_main()
 
@@ -27,14 +33,17 @@ def _enforce_production_authority(project_root: Path) -> None:
         or framework.get("name") != "NautilusTrader"
         or framework.get("version") != "1.230.0"
         or framework.get("runtime") != "BacktestNode+ParquetDataCatalog"
+        or production.get("revision") != 12
+        or production.get("release_manifest")
+        != "portfolio_workbench/nautilus_production_rev12/release_manifest.json"
     ):
         print(
             json.dumps(
                 {
-                    "status": "production_frozen",
+                    "status": "production_authority_failed",
                     "message": (
-                        "Production rev4 is frozen. Staged Nautilus rev5 requires "
-                        "all gates and explicit promotion approval before signal/rebalance."
+                        "Active production must be the exact frozen Nautilus rev12 "
+                        "release before signal/rebalance."
                     ),
                 }
             )
