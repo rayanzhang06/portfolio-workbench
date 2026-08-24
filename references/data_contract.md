@@ -46,11 +46,19 @@ interactive session; scheduled runs fail closed and never use this fallback.
 
 - The primary source is the visible Investment Ledger account page at
   `https://tzzb.10jqka.com.cn/pc/index.html#/myAccount/a/6O2MaGg`, read-only
-  through `computer-use` in the user's Chrome session.
-- Select and visibly verify the `汇总持仓` tab before reading data, and repeat
-  that check after every reload or route change. Never consume amounts from
-  `我的账户`, even if it is the landing tab or its account cards show numeric
-  values.
+  through authenticated Chrome DOM control. Codex uses
+  `chrome:control-chrome`; Hermes uses its built-in `browser_navigate`,
+  `browser_snapshot`, `browser_click`, and `browser_console` tools attached by
+  `browser.cdp_url` to a dedicated headed Hermes Chrome profile. Hermes must
+  not depend on Codex's `node_repl` or `browser-client.mjs`. Read only visible
+  DOM state; do not inspect browser secrets or call private page APIs or
+  network endpoints. Do not use `computer-use` for this source.
+- The landing route selects `汇总持仓`. Click `华宝`, then require both its
+  visible active state and the resulting route
+  `https://tzzb.10jqka.com.cn/pc/index.html#/myAccount/a/Ii8kkCY`. Repeat both
+  checks after every reload or route change. Never consume amounts from
+  `汇总持仓`, `我的账户`, `爱基金`, or `平安`, even if one of those tabs is the
+  landing view or shows numeric values.
 - The web valuation/update date must reach the latest completed XSHG session.
   Nonzero holdings paired with a displayed zero total are inconsistent data,
   not a real zero balance. Reject the snapshot with
@@ -58,12 +66,20 @@ interactive session; scheduled runs fail closed and never use this fallback.
 - Reject data when holdings, cash and non-strategy amounts exceed total assets
   by more than CNY 0.02, dates or totals cross tabs/refresh states, or total and
   cash would need to be inferred from a rounded allocation percentage.
+- Treat an absent strategy asset as zero only when the full unfiltered holding
+  list is visible and every displayed row was extracted. Record the absence in
+  the recognition notes; otherwise ask rather than infer.
 - If the page is stale or unsynchronized, ask the user to `访问投资账本app`, then
   reload and retry. If authentication is required, ask the user to log in in
   Chrome, then reload and retry; never request or enter credentials.
-- Request a screenshot only when the page remains unavailable or unreadable
-  after the applicable user action and retry. Web and screenshot holdings both
-  require explicit user confirmation before `rebalance` saves them.
+- Request a screenshot when the host's authenticated Chrome adapter is
+  unavailable, the visible DOM is incomplete or unreadable, or the page still
+  fails after the applicable user action and retry. The fallback is exactly
+  Chrome DOM control then screenshot; do not insert `computer-use`. In Hermes,
+  distinguish runtime unavailability before navigation (`当前 Hermes 会话缺少
+  Chrome 账户读取能力，因此无法开始读取投资账本。`) from a page read that
+  started and then failed (`投资账本读取仍失败`). Both sources require explicit
+  user confirmation before `rebalance` saves them.
 - Do not silently treat the last record in `records.jsonl` as current after a
   failed web read. Reuse it only after the user explicitly selects that dated
   snapshot and confirms that no account changes occurred after it.
@@ -147,7 +163,7 @@ date, total value, amounts and ETF mappings.
   "non_strategy_amount": 0.0,
   "etf_names": {},
   "screenshot_path": null,
-  "source_id": "investment-ledger-web:6O2MaGg:summary-holdings",
+  "source_id": "investment-ledger-web:Ii8kkCY:huabao",
   "confirmed": true
 }
 ```
