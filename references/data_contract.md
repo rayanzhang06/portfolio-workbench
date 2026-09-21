@@ -45,15 +45,20 @@ interactive session; scheduled runs fail closed and never use this fallback.
 ## Current Holding Resolution
 
 - The primary source is the visible Investment Ledger account page at
-  `https://tzzb.10jqka.com.cn/pc/index.html#/myAccount/a/6O2MaGg`, read-only
-  through authenticated Chrome DOM control. Codex uses
-  `chrome:control-chrome`; Hermes uses its built-in `browser_navigate`,
+  `https://tzzb.10jqka.com.cn/pc/index.html#/myAccount/a/Ii8kkCY`, read-only
+  through authenticated Chrome DOM control. Codex uses the currently callable
+  browser DOM adapter (`mcp__cua_repl.js` browser DOM/Playwright or structured
+  page-text APIs), or legacy `chrome:control-chrome` when available. Read the
+  selected adapter's documentation first. Hermes uses its built-in `browser_navigate`,
   `browser_snapshot`, `browser_click`, and `browser_console` tools attached by
   `browser.cdp_url` to a dedicated headed Hermes Chrome profile. Hermes must
   not depend on Codex's `node_repl` or `browser-client.mjs`. Read only visible
   DOM state; do not inspect browser secrets or call private page APIs or
-  network endpoints. Do not use `computer-use` for this source.
-- The landing route selects `汇总持仓`. Click `华宝`, then require both its
+  network endpoints. Browser DOM capability within `unified-computer-use` is
+  allowed; native-app control, screenshot recognition and coordinate actions
+  are not. A rejected browser permission must not be bypassed by changing adapters.
+- Open the Huabao route directly. If redirected to the legacy summary route,
+  click `华宝`, then require both its
   visible active state and the resulting route
   `https://tzzb.10jqka.com.cn/pc/index.html#/myAccount/a/Ii8kkCY`. Repeat both
   checks after every reload or route change. Never consume amounts from
@@ -75,7 +80,8 @@ interactive session; scheduled runs fail closed and never use this fallback.
 - Request a screenshot when the host's authenticated Chrome adapter is
   unavailable, the visible DOM is incomplete or unreadable, or the page still
   fails after the applicable user action and retry. The fallback is exactly
-  Chrome DOM control then screenshot; do not insert `computer-use`. In Hermes,
+  Chrome DOM control then user-confirmed screenshot; do not insert screenshot
+  or coordinate computer control. In Hermes,
   distinguish runtime unavailability before navigation (`当前 Hermes 会话缺少
   Chrome 账户读取能力，因此无法开始读取投资账本。`) from a page read that
   started and then failed (`投资账本读取仍失败`). Both sources require explicit
@@ -86,6 +92,27 @@ interactive session; scheduled runs fail closed and never use this fallback.
 - A plan is current only when its decision run and pending identity match the
   latest verified signal. A new signal never rebuilds an account plan from
   history; it archives any prior latest plan as superseded.
+
+## Display-only Monitor Observation
+
+For an authorized display-only monitor refresh, macOS native Chrome
+accessibility text is also permitted, as specified in SKILL.md. This path does
+not attach a browser debugger. It writes only an unconfirmed
+`portfolio.monitor_observation.v1` with `capture_method=macos-accessibility-chrome`;
+it cannot confirm holdings or create account plans. A native screenshot may
+verify active-tab appearance, but amounts and dates come from accessibility text.
+The exact Huabao route, complete list, current valuation date and reconciliation
+checks still apply. Source-upload and observation times remain separate fields.
+
+The 2026-09-19 approved GitHub Pages monitor is public. Account read failure does
+not block model refresh: only a freshly refreshed, authority-verified model can
+be newly published, with absent accounts or explicitly stale last-published
+observations retaining their original dates. Stale observations have null model
+amounts, model weights and deviations; no trade plans are published. Do not read
+confirmed account records as an automatic fallback. Publication journals retain
+validated model artifacts and file hashes for resumable deployment. Display SLA
+(next morning 08:30) does not relax production freshness. Native standalone AX
+collection is a prototype; retain the heartbeat trigger until full acceptance.
 
 ## Active Production Rev12 Strategy
 

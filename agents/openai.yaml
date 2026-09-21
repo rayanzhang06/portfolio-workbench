@@ -2,4 +2,4 @@ interface:
   display_name: "Portfolio Workbench"
   short_description: "分离生成策略信号，或从投资账本华宝账户计算调仓金额"
   brand_color: "#2F6F73"
-  default_prompt: "使用 $portfolio-workbench：信号模式只刷新到上一交易日收盘并生成账户无关策略信号；账户模式优先通过当前 Agent 的 Chrome DOM 工具读取投资账本华宝账户（Codex 用 control-chrome，Hermes 用连接专用 CDP Chrome 的 browser 工具），通过日期和一致性检查后让我确认；能力不可用或读取失败时直接改用我确认的完整持仓截图。"
+  default_prompt: "使用 $portfolio-workbench：信号模式生成账户无关正式信号；监控优先通过 macOS 原生 Chrome 辅助功能文字读取华宝，不连接调试器，只保存未确认观察。经批准的公开 Pages 监控允许模型独立更新，持仓失败保留标旧历史且暂停偏差判断。账户金额适配仍使用 Chrome DOM 或用户确认截图，并在确认持仓后执行。"
