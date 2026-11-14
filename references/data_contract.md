@@ -1,3 +1,7 @@
+## MCP source precedence (2026-11-14)
+
+All holdings acquisition uses the shared `scripts/collect_huabao_mcp.py` command first, invoked with project Python in both Codex and Hermes. See SKILL.md for the tested MCP identity, current-data date convention and confirmation contract. Only after MCP failure may the host attempt its existing web reader once; older browser-first/reload instructions below apply only to that single fallback and do not authorize additional attempts. Model-only jobs remain account-independent. MCP monitor observations remain unconfirmed, expire after 24 hours and never enter account plans without explicit confirmation.
+
 # Portfolio Workbench Data Contract
 
 ## User-Facing Operations

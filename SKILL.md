@@ -1,6 +1,6 @@
 ---
 name: portfolio-workbench
-description: Use for production portfolio signals, scheduled monitor updates, current actual holdings, or concrete CNY rebalance amounts. Keep signals account-independent. Read only Investment Ledger “华宝”; display-only monitoring may use macOS accessibility text without a browser debugger, while account adaptation uses authenticated Chrome DOM or a user-confirmed screenshot. Validate freshness and consistency.
+description: Use for production portfolio signals, scheduled monitor updates, current actual holdings, or concrete CNY rebalance amounts. Keep signals account-independent. Read only Investment Ledger “华宝” through MCP first; attempt the existing web reader once only after MCP fails. Keep account confirmation separate. Validate freshness and consistency.
 ---
 
 # Portfolio Workbench
@@ -34,9 +34,26 @@ This gate has highest priority over every flow below.
 
 ## Account Holding Source
 
+### MCP first (2026-11-14; supersedes older source ordering below)
+
+In Codex, Hermes, interactive Account Mode and scheduled display monitoring, first run:
+
+```bash
+"<project-root>/.venv/bin/python" "<project-root>/scripts/collect_huabao_mcp.py" --project-root "<project-root>"
+```
+
+For display monitoring add `--save`; this saves only an unconfirmed observation through the existing validator. For Account Mode omit `--save`, present the returned amounts for the existing explicit confirmation, then use the verified signal and existing account adapter. Signal Mode and signal-only scheduled jobs must still never collect holdings.
+
+The shared command calls the official TZZB MCP through the persisted Codex OAuth connection using a fresh, model-free app-server session. Hermes invokes the project Python through terminal; do not copy tokens or require Hermes' own Python to contain project dependencies. Require the uniquely named Huabao account with `fundKey=51851595`, the complete holdings list, code/name mappings, explicit cash/total and reconciliation. Unknown instruments or inconsistent data fail collection.
+
+The owner confirms MCP returns current data. If the provider omits valuation date, assign the latest completed XSHG session and record `valuation_date_basis=user_confirmed_mcp_current`; never claim this date was returned by the server. Preserve actual `observed_at` and `lastSyncTime` separately. The 24-hour observation expiry remains in force. MCP source identity is `investment-ledger-mcp:51851595:huabao`; never label it as browser evidence.
+
+If and only if this invocation fails (including authentication, transport, identity, completeness or consistency failure), attempt the existing web reader once per acquisition request: native Chrome AX for display monitoring, the host's existing Chrome DOM adapter for Account Mode. The steps below describe this fallback only. Do not reload/retry or switch browser adapters for a second web attempt within the same request. If that attempt fails, report the blocker and retain the existing model-independent/stale-account behavior; Account Mode may request a user-confirmed screenshot under its existing confirmation policy. A later user-requested acquisition starts a new request.
+
+
 Use this section in Account Mode or an explicitly authorized display-only monitor refresh. Signal Mode itself must not open Investment Ledger or read any actual-account source.
 
-1. For Account Mode, use authenticated Chrome DOM control as the primary source after confirming that no dedicated Investment Ledger connector or official API is available. For display-only monitoring on macOS, use the native accessibility path under Display-only monitor refresh first:
+1. Only after MCP fails, make one web fallback attempt. For Account Mode use authenticated Chrome DOM; for display-only monitoring on macOS use the native accessibility path below:
    - In Codex Account Mode, use the currently callable Chrome DOM browser adapter. When `mcp__cua_repl.js` is available, select Chrome through its documented browser entry point, read the returned documentation, and use only its browser DOM/Playwright or structured page-text APIs. The plugin name `unified-computer-use` does not prohibit its browser DOM capability. Native Chrome accessibility is separately allowed for display-only monitoring below; do not use screenshot-recognized amounts or coordinate actions in this browser-reading path. Legacy `chrome:control-chrome` remains supported when available; read its skill before using it. Do not assume either adapter is installed from files alone.
    - In Hermes, use the built-in `browser` toolset attached through `browser.cdp_url` to the dedicated headed Hermes Chrome profile. Require callable `browser_navigate`, `browser_snapshot`, `browser_click`, and `browser_console`; do not require Codex's `node_repl` or `browser-client.mjs`.
    - Installed plugin or skill files alone do not prove runtime capability. Continue only when the current session exposes the required adapter tools and can reach the configured browser.
@@ -55,13 +72,13 @@ For an authorized display-only monitor refresh, read `<project-root>/docs/strate
 
 The display deadline is next morning 08:30 Asia/Singapore; this is a monitoring SLA, not a change to the production latest-completed-XSHG-session gate. Keep pending validated publication packages for retry instead of recomputing after a deployment/network failure. Never publish private evidence, credentials, source routes or account plans. The approved native standalone AX collector remains a feasibility prototype until exact route, selected tab, full table, dates and reconciliation pass repeatable acceptance; a successful permission probe alone is not a working holdings collector. Do not switch to local scheduling until that acceptance is recorded. The existing heartbeat remains the trigger during this transition.
 
-On macOS, prefer Chrome's native accessibility text for this display-only flow. Use `mcp__cua_repl.js` with `cua.getApp("com.google.Chrome")`, then `app.getAXState()`. This reads the ordinary Chrome window without attaching a browser debugger. Do not use `cua.createBrowserTab`, browser DOM/Playwright or CDP on the ledger in the same flow: the website may replace its content when a debugger attaches. If the correct Huabao page is already visible, use a normal reload; otherwise use native Chrome shortcuts to open a new tab and type the exact Huabao URL. Inspect fresh accessibility state after each action. Check both the address bar and the selected Huabao tab; a native screenshot may verify the selected-tab appearance only when accessibility text omits selection, but all amounts and dates must come from text. Extract the complete table through its total row, including visible cash and total. Set `capture_method=macos-accessibility-chrome`. Do not inspect unrelated tabs or apps, manipulate detection scripts, disable protections, or use private APIs. Missing macOS accessibility permission, a locked desktop, login failure, incomplete text or inconsistent values stops the account update and requires a specific failure report; continue the independent model pipeline under the approved display-only policy above.
+Only after MCP fails, attempt Chrome's native accessibility text once for this display-only flow. Use `mcp__cua_repl.js` with `cua.getApp("com.google.Chrome")`, then `app.getAXState()`. This reads the ordinary Chrome window without attaching a browser debugger. Do not use `cua.createBrowserTab`, browser DOM/Playwright or CDP on the ledger in the same flow: the website may replace its content when a debugger attaches. If the correct Huabao page is already visible, use a normal reload; otherwise use native Chrome shortcuts to open a new tab and type the exact Huabao URL. Inspect fresh accessibility state after each action. Check both the address bar and the selected Huabao tab; a native screenshot may verify the selected-tab appearance only when accessibility text omits selection, but all amounts and dates must come from text. Extract the complete table through its total row, including visible cash and total. Set `capture_method=macos-accessibility-chrome`. Do not inspect unrelated tabs or apps, manipulate detection scripts, disable protections, or use private APIs. Missing macOS accessibility permission, a locked desktop, login failure, incomplete text or inconsistent values stops the account update and requires a specific failure report; continue the independent model pipeline under the approved display-only policy above.
 
 ### Account Consistency Gate
 
 Stop before confirmation or `rebalance` when any condition holds:
 
-- `华宝` is not visibly selected, the route is not `/pc/index.html#/myAccount/a/Ii8kkCY`, or any value came from `汇总持仓`, `我的账户`, `爱基金`, or `平安`.
+- For the web fallback, `华宝` is not visibly selected, the route is not `/pc/index.html#/myAccount/a/Ii8kkCY`, or any value came from `汇总持仓`, `我的账户`, `爱基金`, or `平安`.
 - Any holding amount is positive while displayed total assets are zero or negative.
 - The sum of explicitly displayed holdings, cash, and non-strategy amounts exceeds total assets beyond CNY 0.02.
 - The valuation/update date is older than the latest completed XSHG session.
@@ -73,7 +90,7 @@ Use `ACCOUNT_SUMMARY_INCONSISTENT` as the reason when nonzero holdings coexist w
 
 Do not silently replace a failed web read with the last record in `portfolio_data/records.jsonl`. That record may be identified as prior context, but it is not a fresh holding source. Reuse it for an account plan only when the user explicitly asks to use that dated snapshot and confirms that no trades, cash flows, or other account changes occurred after it.
 
-Both Chrome-DOM-read holdings and screenshot-recognized holdings must pass the same explicit confirmation gate before `rebalance` appends a record. The account source may change the account amount plan only; it must never change the strategy signal, model state, or run manifest.
+MCP-read, Chrome-DOM-read and screenshot-recognized holdings must pass the same explicit confirmation gate before `rebalance` appends a record. The account source may change the account amount plan only; it must never change the strategy signal, model state, or run manifest.
 
 ## User Action First
 
@@ -129,7 +146,7 @@ Do not routinely display `目标仓位是否更新`, raw `HOLD` / `TRADE` / `pen
    - `黄金9999` or confirmed domestic gold ETF → `gold`
 6. Lead with `需要你确认：以下持仓信息是否准确？`, then show one confirmation table with `资产类别`, `ETF名称`, `实际金额 CNY`, `当前权重 %`, `识别备注` and a compact source/update-date line.
 7. Calculate weights from amounts divided by total assets. Never accept user-entered weights.
-8. Save and generate amounts only after explicit confirmation. For an Investment Ledger read, omit `screenshot_path` and set `source_id` to `investment-ledger-web:Ii8kkCY:huabao`. For a fallback screenshot, include its absolute path and source name. Write the confirmed values to a UTF-8 JSON payload and run:
+8. Save and generate amounts only after explicit confirmation. For an Investment Ledger read, omit `screenshot_path`; retain `investment-ledger-mcp:51851595:huabao` for MCP or `investment-ledger-web:Ii8kkCY:huabao` for the single web fallback. For a fallback screenshot, include its absolute path and source name. Write the confirmed values to a UTF-8 JSON payload and run:
 
 ```bash
 "<project-root>/.venv/bin/python" "<project-root>/scripts/portfolio_workbench_tool.py" --project-root "<project-root>" rebalance --payload "/tmp/holding-payload.json"
@@ -197,7 +214,7 @@ Historical `config_events.jsonl` may remain on disk as inert audit data. It is n
 ## Safety And Boundaries
 
 - Keep one explicit confirmation gate for both Investment Ledger reads and fallback screenshots.
-- Keep Account Mode's source fallback exactly two levels: authenticated Chrome DOM control first (current Codex browser DOM adapter, legacy `chrome:control-chrome`, or Hermes native browser tools through the dedicated CDP profile), then a user-confirmed screenshot. Display-only monitoring may instead use the scoped native Chrome accessibility path above. Never turn monitor observations into confirmed account plans.
+- Use MCP first, then at most one authenticated Chrome DOM fallback (current Codex browser DOM adapter, legacy `chrome:control-chrome`, or Hermes native browser tools through the dedicated CDP profile), then a user-confirmed screenshot. Display-only monitoring may instead use the scoped native Chrome accessibility path above. Never turn monitor observations into confirmed account plans.
 - Do not invent unreadable amounts, dates, or ETF mappings.
 - Do not present a stale prior amount plan as current.
 - Warnings are advisory; validation failure stops generation.
