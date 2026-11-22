@@ -15,7 +15,7 @@ rebalance --payload <confirmed-holding-json>
 
 Both operations require active production revision 12, NautilusTrader 1.230.0,
 and an exact release binding to
-`portfolio_workbench/nautilus_production_rev12/release_manifest.json`. The
+`portfolio_workbench/nautilus_production_rev13/release_manifest.json`. The
 complete `portfolio.nautilus_run.v1` and signal envelope must pass
 `scripts/verify_nautilus_authority_v2.py` before publication or account
 adaptation. Production rev4 is rollback-only and cannot generate a new signal.
@@ -27,13 +27,13 @@ does not read `records.jsonl` or call the account adapter. `rebalance` consumes
 the already published and validator-passed `latest_signal.json`; it does not
 refresh market data or generate another strategy run.
 
-This separation is native to the frozen rev12 production workbench. Files under
-`portfolio_workbench/nautilus_production_rev12/` and their release manifest stay
+This separation is native to the frozen rev13 production workbench. Files under
+`portfolio_workbench/nautilus_production_rev13/` and their release manifest stay
 byte-for-byte immutable; all strategy computation originates from that
 validated release.
 
 The production account adapter is
-`portfolio_workbench.nautilus_production_rev12.account_adapter:build_execution_plan`.
+`portfolio_workbench.nautilus_production_rev13.account_adapter:build_execution_plan`.
 It consumes one verified signal path and one confirmed holding snapshot. It
 cannot recalculate the strategy or modify the signal.
 
@@ -118,16 +118,16 @@ validated model artifacts and file hashes for resumable deployment. Display SLA
 (next morning 08:30) does not relax production freshness. Native standalone AX
 collection is a prototype; retain the heartbeat trigger until full acceptance.
 
-## Active Production Rev12 Strategy
+## Active Production Rev13 Strategy
 
 ```text
-equity_b0nqg_rb50_40_10_bond10_ewma20hl_b0c2afirstbreachz2h8_weekly_xshgcal_noinsurance_basegate5_etfpx_uncapped_exact
+equity_b0nqcg_rb45_45_2_8_cba21801_ewma20hl_t1_b0c2afirstbreachz2h8_weekly_xshgcal_noinsurance_basegate5_uncapped_exact
 ```
 
-- Production revision: `12`.
-- China bonds have a fixed 10% target. B0, Nasdaq and gold share the 90% dynamic
-  sleeve with target risk contributions 50%, 40% and 10%.
-- Covariance is zero-mean EWMA over all jointly valid prior returns, using a
+- Production revision: `13`.
+- The joint risk budget assigns B0, Nasdaq, CBA21801 and gold target risk
+  contributions 45%, 45%, 2% and 8%.
+- Covariance is zero-mean EWMA over all jointly valid returns through the preceding XSHG session, using a
   20-trading-day half-life and a 60-return warm-up. Before the first valid
   weekly risk-budget result, the model stays in cash.
 - B0 uses weekly first outward breach at 2 sigma and exits at zero or after
@@ -143,13 +143,13 @@ equity_b0nqg_rb50_40_10_bond10_ewma20hl_b0c2afirstbreachz2h8_weekly_xshgcal_noin
 - `cni_growth`: CNI 980080.
 - `cni_value`: CNI 980081.
 - `nasdaq`: split-adjusted 513100 secondary-market close.
-- `china_bond_composite`: H11001.
+- `china_bond_composite`: CBA21801 ChinaBond 30-year Treasury wealth index. Confirmed account instrument is 511090. The prior 161119 position is classified separately as non-strategy.
 - `gold`: split-adjusted 518880 secondary-market close.
 
 The common mainland session calendar is authoritative. ETF observations may be
 forward-filled for at most two common sessions. An unfinished current session,
 missing latest completed session, excessive staleness, or calendar conflict is
-a hard failure. Rev12 has no historical activation exception.
+a hard failure. Rev13 has no historical activation exception.
 
 ## Mutable Files
 

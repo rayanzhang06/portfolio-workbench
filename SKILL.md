@@ -14,7 +14,7 @@ This skill has exactly two user-facing functions:
 
 Always use the project package `portfolio_workbench` as the execution source. Do not reimplement strategy math in the prompt, do not use the retired Workbench web UI, and do not import code or runtime files from `portfolio-dev/`. The external Investment Ledger page below is a read-only account-data source, not a strategy runtime.
 
-The rev12 release directory is immutable. Its production workbench natively prevents Signal Mode from reading account history and makes Account Mode consume the already verified signal. The canonical script calls this frozen release directly and must never change or replay the Nautilus strategy path.
+The rev13 release directory is immutable. Its production workbench natively prevents Signal Mode from reading account history and makes Account Mode consume the already verified signal. The canonical script calls this frozen release directly and must never change or replay the Nautilus strategy path.
 
 ## NautilusTrader Authority Gate
 
@@ -22,7 +22,7 @@ This gate has highest priority over every flow below.
 
 1. Read `<project-root>/strategy_channels.json` before running `signal` or `rebalance`.
 2. Continue only when the active `production` channel declares `status=active`, `framework.name=NautilusTrader`, `framework.version=1.230.0`, `framework.runtime=BacktestNode+ParquetDataCatalog`, and a `run_manifest_field`.
-3. Production is active at rev12. Continue only when `strategy_channels.json` points to the exact self-contained rev12 release. Rev11 and rev4 are rollback-only and their cached outputs must never be displayed as current.
+3. Production is active at rev13. Continue only when `strategy_channels.json` points to the exact self-contained rev13 release. Rev12, rev11 and rev4 are rollback-only and their cached outputs must never be displayed as current.
 4. After the production run writes `latest_signal.json`, run:
 
 ```bash
@@ -30,7 +30,7 @@ This gate has highest priority over every flow below.
 ```
 
 5. Show or adapt the signal only when the validator returns `status=passed`. The signal's `portfolio.nautilus_run.v1` must bind the production release, Nautilus version, input/calendar/catalog/config digests, reference run, and event/fill/position/result digests. A screenshot or confirmed holding may change only the account amount plan, never that signal or its run manifest.
-6. Amount adaptation must call `portfolio_workbench.nautilus_production_rev12.account_adapter:build_execution_plan` with the verified signal path and one confirmed snapshot. Do not call legacy `PortfolioWorkbench.daily_signal` or enable its migration-oracle test path.
+6. Amount adaptation must call `portfolio_workbench.nautilus_production_rev13.account_adapter:build_execution_plan` with the verified signal path and one confirmed snapshot. Do not call legacy `PortfolioWorkbench.daily_signal` or enable its migration-oracle test path.
 
 ## Account Holding Source
 
@@ -123,10 +123,10 @@ Do not routinely display `目标仓位是否更新`, raw `HOLD` / `TRADE` / `pen
 2. Pass `NautilusTrader Authority Gate`, then run:
 
 ```bash
-"<project-root>/.venv/bin/python" "<project-root>/scripts/portfolio_workbench_tool.py" --project-root "<project-root>" signal
+"<project-root>/.venv/bin/python" "<project-root>/scripts/portfolio_active_release.py" --project-root "<project-root>" signal
 ```
 
-3. Before strategy computation, refresh all five production caches and require their common data end to equal `latest_completed_xshg_session`. At Monday 09:00 Beijing time this is the previous XSHG trading day, normally Friday. The rev12 freshness gate is authoritative; an unfinished current session, missing common close, excessive forward-fill staleness, or mixed cache generation is blocking.
+3. Before strategy computation, refresh all five production caches and require their common data end to equal `latest_completed_xshg_session`. At Monday 09:00 Beijing time this is the previous XSHG trading day, normally Friday. The rev13 freshness gate is authoritative; an unfinished current session, missing common close, excessive forward-fill staleness, or mixed cache generation is blocking.
 4. Present `market_refresh.message` first when refresh fails. In an unattended scheduled run, stop without `--no-refresh`, do not publish a conclusion from cache, and report the missing required session. In an interactive run only, a usable cache may be retried with `--no-refresh` after explicit user confirmation.
 5. After the authority validator passes, present only data end, strategy action and reason, exact five-asset target weights, execution date when available, and actionable warnings.
 
@@ -142,14 +142,15 @@ Do not routinely display `目标仓位是否更新`, raw `HOLD` / `TRADE` / `pen
    - `成长ETF易方达` → `cni_growth`
    - `价值ETF易方达` → `cni_value`
    - confirmed Nasdaq/QDII fund → `nasdaq`
-   - `易方达新综债LOF` → `china_bond_composite`
+   - `鹏扬30年国债ETF（511090）` → `china_bond_composite`
+   - `易方达新综债LOF（161119）` → `non_strategy`。保留该持仓时，从可调度策略本金中扣除其金额。
    - `黄金9999` or confirmed domestic gold ETF → `gold`
 6. Lead with `需要你确认：以下持仓信息是否准确？`, then show one confirmation table with `资产类别`, `ETF名称`, `实际金额 CNY`, `当前权重 %`, `识别备注` and a compact source/update-date line.
 7. Calculate weights from amounts divided by total assets. Never accept user-entered weights.
 8. Save and generate amounts only after explicit confirmation. For an Investment Ledger read, omit `screenshot_path`; retain `investment-ledger-mcp:51851595:huabao` for MCP or `investment-ledger-web:Ii8kkCY:huabao` for the single web fallback. For a fallback screenshot, include its absolute path and source name. Write the confirmed values to a UTF-8 JSON payload and run:
 
 ```bash
-"<project-root>/.venv/bin/python" "<project-root>/scripts/portfolio_workbench_tool.py" --project-root "<project-root>" rebalance --payload "/tmp/holding-payload.json"
+"<project-root>/.venv/bin/python" "<project-root>/scripts/portfolio_active_release.py" --project-root "<project-root>" rebalance --payload "/tmp/holding-payload.json"
 ```
 
 9. After saving, apply `User Action First`. If rebalancing is required, present each asset's current amount, target amount, buy/sell amount, and ETF name. Show cash and non-strategy residuals separately. If no trade is required, say `当前无需操作。` and stop.
@@ -163,21 +164,21 @@ The confirmed flow appends `portfolio_data/records.jsonl` and writes `latest_exe
 Strategy ID:
 
 ```text
-equity_b0nqg_rb50_40_10_bond10_ewma20hl_b0c2afirstbreachz2h8_weekly_xshgcal_noinsurance_basegate5_etfpx_uncapped_exact
+equity_b0nqcg_rb45_45_2_8_cba21801_ewma20hl_t1_b0c2afirstbreachz2h8_weekly_xshgcal_noinsurance_basegate5_uncapped_exact
 ```
 
-Production revision: `12`.
+Production revision: `13`.
 
 Production status: active NautilusTrader release.
 
-Rev12 has no historical activation waiver. Every production signal must reach the latest completed XSHG session.
+Rev13 has no historical activation waiver. Every production signal must reach the latest completed XSHG session.
 
 ### 1. B0 and risk-budget base
 
-- Fixed China bond target: 10%. Gold has no fixed allocation.
+- Bond model inputs use the CBA21801 ChinaBond 30-year Treasury wealth index.
 - B0 uses the 40-day growth-minus-value return spread and MA250/sample-SD250 Z score. The first weekly outward breach below −2σ selects growth; above +2σ selects value. Exit at zero or after eight weekly observations.
-- B0, Nasdaq and gold share the 90% dynamic sleeve with target risk contributions 50%, 40% and 10%.
-- Covariance: zero-mean EWMA over all jointly valid prior returns, with a 20-trading-day half-life and minimum 60-return warm-up. Before the first non-fallback weekly result, the model stays in cash.
+- The joint risk budget assigns B0, Nasdaq, CBA21801 and gold target contributions of 45%, 45%, 2% and 8%.
+- Covariance: zero-mean EWMA over all jointly valid returns through the previous completed XSHG session, with a 20-trading-day half-life and minimum 60-return warm-up. Before the first non-fallback weekly result, the model stays in cash.
 - No single-asset cap.
 
 ### 2. Rebalance gate
